@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "messagepaw"
+version = "0.1.0"
+description = ""
+authors = ["Anton Kalchenko  <anton11042002@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
