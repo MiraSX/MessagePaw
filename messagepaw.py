@@ -8,7 +8,10 @@ from dotenv import load_dotenv
 from sheetpaw import get_pur
 
 logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
+    filename="sending_logs",
+    filemode="a",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
 env_path = os.path.join(os.path.dirname(__file__), ".env")
@@ -17,14 +20,13 @@ load_dotenv(dotenv_path=env_path)
 
 client = slack.WebClient(token=os.getenv("BOT_TOKEN"))
 
-users = client.users_list()["members"]
 
 data = {}
 
-print(users)
-
 
 def get_users():
+    users = client.users_list()["members"]
+
     for user in users:
         if (
             not user["deleted"]
@@ -41,57 +43,76 @@ def get_users():
             if data_key == name_in_ctnt:
                 value["ID"] = data_value
 
+    for key, value in data_ctnt.copy().items():
+        id_in_ctnt = value.get("ID")
+        if id_in_ctnt is None:
+            data_ctnt.pop(key)
+
     with open("./db/ctnt.json", "w") as f:
         json.dump(data_ctnt, f, indent=4, separators=(",", ": "))
 
 
-def send_message(user_id, message):
+def send_message(user_id, name, pur, message):
     try:
         response = client.chat_postMessage(channel=user_id, text=message)
-        logging.debug(f"Message sent to {user_id}: {response.get('ok')}")
+        logging.info(
+            f"Message sent to ID: {user_id} Name: {name} PUR: {pur}: {response.get('ok')}"
+        )
     except SlackApiError as e:
-        logging.debug(f"Error sending message: {e.response['error']}")
+        logging.info(f"Error sending message: {e.response['error']}")
 
 
 if __name__ == "__main__":
-    # get_pur()
-    # get_users()
+    get_pur()
+    get_users()
 
-    with open("./db/ctnt.json", "r") as f:
-        data = json.load(f)
-    for user in data:
-        if 0 < int(data[user]["PUR"]) < 90:
-            #             message_month = f"""
+#     with open("./db/ctnt.json", "r") as f:
+#         data = json.load(f)
+#     for user in data:
+#         if 0 < int(data[user]["PUR"]) < 90:
+#             message_weekly_less = f"""
 
-            #     Привет!
+# Привет. Заметил, что у тебя PUR текущий месяц значительно меньше чем мы ожидаем (PUR - соотношение между прод временем в табличке Canvas Task & Time и времени записанном в метадате на работах).
 
-            #     Заметил, что твой PUR за прошлый месяц (PUR - соотношение между прод временем в табличке Canvas Task & Time и времени записанном в метадате на работах) немного ниже значения, что мы ожидаем.
+# Данные:
+# - Твой PUR - {data[user]["PUR"]}%
+# - Ожидаемый PUR - 95%
+# - Canvas Task & Time - {data[user]["Table time"]} мин
+# - Метадата - {data[user]["metadata"]} мин
 
-            #     Данные:
+# Разница в {int(data[user]["Table time"]) - int(data[user]["metadata"])}
+# Возможно у тебя есть работы в процессе в которых ты еще не заполнил(а) метадату? Если такие есть, можешь подсказать сколько минут ты на них потратил(а)?
 
-            #     - Твой PUR - {data[user]["pur"]}%
-            #     - Ожидаемый PUR - 95%
+# Автор бота: <@U05HCBAPKKM>. Отправь мне это сообщение с ответом :02_cheer:
+# """
+#             send_message(
+#                 data[user]["ID"],
+#                 data[user]["Name"],
+#                 data[user]["PUR"],
+#                 message_weekly_less,
+#             )
 
-            #     Пожалуйста обрати внимание на этот показатель в текущем месяце. Если значение будет слишком низким, мы вынуждены будем оплачивать ЗП лишь по Active time с Insightful.
+#         if int(data[user]["PUR"]) > 120:
+#             message_weekly_more = f"""
 
-            #     Автор бота: <@U05HCBAPKKM> (Отпишитесь мне в личку пришло ли вам сообщение :slightly_smiling_face:) Если возникнут вопросы, пиши)
-            #     """
-            message_weekly = f"""
+# Привет. Заметил, что у тебя PUR текущий месяц значительно больше чем мы ожидаем (PUR - соотношение между прод временем в табличке Canvas Task & Time и времени записанном в метадате на работах).
 
-Привет. Заметил, что у тебя PUR текущий месяц значительно меньше чем мы ожидаем (PUR - соотношение между прод временем в табличке Canvas Task & Time и времени записанном в метадате на работах).
+# Данные:
+# - Твой PUR - {data[user]["PUR"]}%
+# - Ожидаемый PUR - 95%
+# - Canvas Task & Time - {data[user]["Table time"]} мин
+# - Метадата - {data[user]["metadata"]} мин
 
-Данные:
-- Твой PUR - {data[user]["PUR"]}%
-- Ожидаемый PUR - 90%
-- Canvas Task & Time - {data[user]["Table time"]} мин
-- Метадата - {data[user]["metadata"]} мин
+# Разница в {int(data[user]["metadata"]) - int(data[user]["Table time"]) }
 
-Разница в {int(data[user]["Table time"]) - int(data[user]["metadata"])} минут показывает, что ты на работе в которых еще не заполнил(а) метадату.
-Возможно у тебя есть работы в процессе в которых ты еще не заполнил(а) метадату? Если такие есть, можешь подсказать сколько минут ты на них потратил(а)?
+# Проверь заполнены ли у тебя все дни в текущем месяце в Canvas Task & Time 2.0.
+# Возможно у тебя перенеслась отправка работ с прошлого месяца в текущий.
 
-Автор бота: <@U05HCBAPKKM>. Отправь мне это сообщение с ответом :02_cheer:
-"""
-            #             send_message(data[user]["ID"], message_weekly)
-
-            # # Для теста
-            send_message(data[user]["ID"], message_weekly)
+# Автор бота: <@U05HCBAPKKM>. Отправь мне это сообщение с ответом :02_cheer:
+# """
+#             send_message(
+#                 data[user]["ID"],
+#                 data[user]["Name"],
+#                 data[user]["PUR"],
+#                 message_weekly_more,
+#             )
